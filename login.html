@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Writerscape - Login</title>
+    <link rel="stylesheet" href="styles.css">
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+</head>
+<body>
+    <!-- Preloader -->
+    <div id="preloader">
+        <div class="preloader-text">Writerscape</div>
+    </div>
+
+    <div class="auth-container">
+        <h1>Writerscape</h1>
+        <div class="auth-form">
+            <input type="email" id="email" placeholder="Email or Phone">
+            <input type="password" id="password" placeholder="Password">
+            <button id="loginBtn"><i class="fas fa-sign-in-alt"></i> Login</button>
+            <button id="googleBtn"><i class="fab fa-google"></i> Login with Google</button>
+            <p>Not a member? <a href="signup.html">Sign up now</a></p>
+        </div>
+    </div>
+
+    <!-- Firebase Compatibility Scripts -->
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
+    <script>
+        const firebaseConfig = {
+            apiKey: "AIzaSyBqZv6IcP0dsCIZLADu2LMalMBA66Q1sCQ",
+            authDomain: "writerscape-3855a.firebaseapp.com",
+            projectId: "writerscape-3855a",
+            storageBucket: "writerscape-3855a.appspot.com",
+            messagingSenderId: "377436644028",
+            appId: "1:377436644028:web:ffc3d2841055b470bda6b9",
+            measurementId: "G-8STT58NQ0Q"
+        };
+
+        // Initialize Firebase
+        firebase.initializeApp(firebaseConfig);
+        const auth = firebase.auth();
+
+        // Preloader Animation
+        document.addEventListener('DOMContentLoaded', () => {
+            const preloader = document.getElementById('preloader');
+            const letters = document.querySelector('.preloader-text').textContent.split('');
+            document.querySelector('.preloader-text').innerHTML = letters.map(letter => `<span>${letter}</span>`).join('');
+            
+            gsap.from('.preloader-text span', {
+                opacity: 0,
+                rotation: 90,
+                stagger: 0.1,
+                duration: 0.5,
+                ease: 'power2.out'
+            });
+            gsap.to(preloader, {
+                opacity: 0,
+                delay: 2,
+                duration: 1,
+                onComplete: () => preloader.style.display = 'none'
+            });
+
+            // Check for signup success message
+            const urlParams = new URLSearchParams(window.location.search);
+            if (urlParams.get('signup') === 'success') {
+                alert('Registration successful! Please verify your email and log in.');
+            }
+        });
+
+        // Auth State Listener (Fallback)
+        auth.onAuthStateChanged(user => {
+            console.log('Auth state changed:', user ? {
+                uid: user.uid,
+                email: user.email,
+                emailVerified: user.emailVerified,
+                providerData: user.providerData
+            } : 'No user');
+            if (user && (user.emailVerified || user.providerData.some(p => p.providerId === 'google.com'))) {
+                console.log('Redirecting to index.html from listener');
+                window.location.href = 'index.html';
+            }
+        });
+
+        // Login with Email/Password
+        document.getElementById('loginBtn').addEventListener('click', async (e) => {
+            e.preventDefault(); // Prevent any default button behavior
+            const email = document.getElementById('email').value.trim();
+            const password = document.getElementById('password').value.trim();
+
+            console.log('Login button clicked:', { email, password }); // Debug input values
+
+            if (!email || !password) {
+                alert('Please enter both email and password.');
+                return;
+            }
+
+            try {
+                const userCredential = await auth.signInWithEmailAndPassword(email, password);
+                const user = userCredential.user;
+                console.log('Email login success:', { email: user.email, emailVerified: user.emailVerified });
+                if (user.emailVerified) {
+                    console.log('Email verified, redirecting to index.html');
+                    window.location.href = 'index.html';
+                } else {
+                    alert('Please verify your email before logging in.');
+                    await auth.signOut();
+                }
+            } catch (error) {
+                console.error('Email login error:', error.code, error.message);
+                alert(`Login failed: ${error.message}`);
+            }
+        });
+
+        // Login with Google
+        document.getElementById('googleBtn').addEventListener('click', async () => {
+            const provider = new firebase.auth.GoogleAuthProvider();
+            try {
+                const result = await auth.signInWithPopup(provider);
+                const user = result.user;
+                console.log('Google login success:', { email: user.email, providerData: user.providerData });
+                console.log('Google user, redirecting to index.html');
+                window.location.href = 'index.html';
+            } catch (error) {
+                console.error('Google login error:', error.code, error.message);
+                alert(`Google login failed: ${error.message}`);
+                if (error.code === 'auth/unauthorized-domain') {
+                    console.log('Check Firebase Console > Authentication > Settings > Authorized Domains');
+                }
+            }
+        });
+    </script>
+</body>
+</html>

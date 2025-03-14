@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Writerscape - Profile</title>
+    <link rel="stylesheet" href="styles.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+</head>
+<body>
+    <div id="preloader">
+        <div class="preloader-text">Writerscape</div>
+    </div>
+
+    <header class="header">
+        <div class="logo" onclick="window.location.href='index.html'">Writerscape</div>
+        <div class="header-icons">
+            <i class="fas fa-bell icon notification-icon" id="notificationIcon"></i>
+            <div class="icon profile-icon" id="profileIcon"></div>
+            <button class="menu-btn">
+                <span></span>
+                <span></span>
+                <span></span>
+            </button>
+        </div>
+    </header>
+
+    <div id="notificationPopup" class="notification-popup">
+        <h3>Notifications</h3>
+        <div id="notificationList"></div>
+    </div>
+
+    <nav class="menu">
+        <a href="profile.html" class="menu-item">Profile</a>
+        <a href="buddies.html" class="menu-item">Buddies</a>
+        <a href="#" class="menu-item" id="logout">Logout</a>
+        <a href="#" class="menu-item">Notifications</a>
+    </nav>
+
+    <main class="content">
+        <div class="profile-details">
+            <div class="profile-photo" id="profilePhoto"></div>
+            <div class="details-column">
+                <p><strong>Name:</strong> <span id="profileName"></span></p>
+                <p><strong>Email:</strong> <span id="profileEmail"></span></p>
+                <p><strong>Username:</strong> <span id="profileUsername"></span></p>
+                <p><strong>Mobile:</strong> <span id="profileMobile"></span></p>
+                <p><strong>Joined:</strong> <span id="profileJoined"></span></p>
+            </div>
+            <button id="editProfileBtn">Edit Profile</button>
+        </div>
+
+        <div id="editProfileForm" style="display: none;">
+            <input type="text" id="editName" placeholder="Name">
+            <input type="email" id="editEmail" placeholder="Email">
+            <input type="text" id="editUsername" placeholder="Username">
+            <input type="tel" id="editMobile" placeholder="Mobile">
+            <input type="file" id="editProfilePic" accept="image/*">
+            <button id="saveProfileBtn">Save Changes</button>
+        </div>
+    </main>
+
+    <footer class="footer-nav">
+        <div class="nav-icon profile-icon" id="footerProfile" onclick="window.location.href='profile.html'"></div>
+        <i class="fas fa-home nav-icon" onclick="window.location.href='index.html'"></i>
+        <i class="fas fa-search nav-icon search-icon" onclick="window.location.href='buddies.html'"></i>
+        <i class="fas fa-sign-out-alt nav-icon logout-icon" id="footerLogout"></i>
+    </footer>
+
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-storage-compat.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
+    <script>
+        const firebaseConfig = {
+            apiKey: "AIzaSyBqZv6IcP0dsCIZLADu2LMalMBA66Q1sCQ",
+            authDomain: "writerscape-3855a.firebaseapp.com",
+            projectId: "writerscape-3855a",
+            storageBucket: "writerscape-3855a.appspot.com",
+            messagingSenderId: "377436644028",
+            appId: "1:377436644028:web:ffc3d2841055b470bda6b9",
+            measurementId: "G-8STT58NQ0Q"
+        };
+
+        firebase.initializeApp(firebaseConfig);
+        const auth = firebase.auth();
+        const db = firebase.firestore();
+        const storage = firebase.storage();
+
+        document.addEventListener('DOMContentLoaded', () => {
+            const preloader = document.getElementById('preloader');
+            const letters = document.querySelector('.preloader-text').textContent.split('');
+            document.querySelector('.preloader-text').innerHTML = letters.map(letter => `<span>${letter}</span>`).join('');
+            gsap.from('.preloader-text span', { opacity: 0, rotation: 90, stagger: 0.1, duration: 0.5, ease: 'power2.out' });
+            gsap.to(preloader, { opacity: 0, delay: 2, duration: 1, onComplete: () => preloader.style.display = 'none' });
+        });
+
+        auth.onAuthStateChanged(user => {
+            if (!user || (!user.emailVerified && !user.providerData.some(p => p.providerId === 'google.com'))) {
+                window.location.href = 'login.html';
+            } else {
+                loadProfile(user);
+                loadNotifications(user);
+            }
+        });
+
+        function loadProfile(user) {
+            document.getElementById('profileIcon').style.backgroundImage = `url(${user.photoURL})`;
+            document.getElementById('footerProfile').style.backgroundImage = `url(${user.photoURL})`;
+            document.getElementById('profilePhoto').style.backgroundImage = `url(${user.photoURL || 'https://via.placeholder.com/150'})`;
+            db.collection('users').doc(user.uid).get().then(doc => {
+                const data = doc.data() || {};
+                document.getElementById('profileName').textContent = data.name || 'N/A';
+                document.getElementById('profileEmail').textContent = data.email || user.email || 'N/A';
+                document.getElementById('profileUsername').textContent = data.username || user.displayName || 'N/A';
+                document.getElementById('profileMobile').textContent = data.phone || 'N/A';
+                document.getElementById('profileJoined').textContent = user.metadata.creationTime ? new Date(user.metadata.creationTime).toLocaleDateString() : 'N/A';
+                document.getElementById('editName').value = data.name || '';
+                document.getElementById('editEmail').value = data.email || user.email || '';
+                document.getElementById('editUsername').value = data.username || user.displayName || '';
+                document.getElementById('editMobile').value = data.phone || '';
+            }).catch(error => console.error('Error loading profile:', error));
+        }
+
+        document.getElementById('editProfileBtn').addEventListener('click', () => {
+            const form = document.getElementById('editProfileForm');
+            form.style.display = form.style.display === 'none' ? 'block' : 'none';
+        });
+
+        document.getElementById('saveProfileBtn').addEventListener('click', async () => {
+            const user = auth.currentUser;
+            const name = document.getElementById('editName').value;
+            const email = document.getElementById('editEmail').value;
+            const username = document.getElementById('editUsername').value;
+            const mobile = document.getElementById('editMobile').value;
+            const profilePic = document.getElementById('editProfilePic').files[0];
+
+            try {
+                let photoURL = user.photoURL;
+                if (profilePic) {
+                    const storageRef = storage.ref(`profilePics/${user.uid}`);
+                    await storageRef.put(profilePic);
+                    photoURL = await storageRef.getDownloadURL();
+                    await user.updateProfile({ photoURL });
+                }
+                await user.updateProfile({ displayName: username });
+                await db.collection('users').doc(user.uid).set({
+                    name, email, username, phone: mobile, photoURL
+                }, { merge: true });
+                alert('Profile updated successfully!');
+                window.location.reload();
+            } catch (error) {
+                console.error('Error updating profile:', error);
+                alert(error.message);
+            }
+        });
+
+        document.getElementById('notificationIcon').addEventListener('click', () => {
+            const popup = document.getElementById('notificationPopup');
+            if (popup.style.display === 'block') {
+                gsap.to(popup, { opacity: 0, y: -20, duration: 0.3, onComplete: () => popup.style.display = 'none' });
+                document.getElementById('notificationIcon').style.color = '#333';
+            } else {
+                popup.style.display = 'block';
+                gsap.fromTo(popup, { opacity: 0, y: -20 }, { opacity: 1, y: 0, duration: 0.3 });
+            }
+        });
+
+        function loadNotifications(user) {
+            db.collection('notifications').where('toUserId', '==', user.uid).orderBy('timestamp', 'desc').onSnapshot(snapshot => {
+                const notificationList = document.getElementById('notificationList');
+                notificationList.innerHTML = '';
+                if (snapshot.size > 0) {
+                    document.getElementById('notificationIcon').style.color = 'red';
+                }
+                snapshot.forEach(doc => {
+                    const notif = doc.data();
+                    notificationList.innerHTML += `<p>${notif.message} - ${new Date(notif.timestamp.toDate()).toLocaleTimeString()}</p>`;
+                });
+            });
+        }
+
+        document.getElementById('logout').addEventListener('click', () => auth.signOut());
+        document.getElementById('footerLogout').addEventListener('click', () => auth.signOut());
+    </script>
+    <script src="script.js"></script>
+</body>
+</html>

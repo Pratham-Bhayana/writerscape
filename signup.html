@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Writerscape - Sign Up</title>
+    <link rel="stylesheet" href="styles.css">
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+</head>
+<body>
+    <!-- Preloader -->
+    <div id="preloader">
+        <div class="preloader-text">Writerscape</div>
+    </div>
+
+    <div class="auth-container">
+        <h1>Writerscape</h1>
+        <div class="auth-form">
+            <input type="text" id="name" placeholder="Full Name">
+            <input type="number" id="age" placeholder="Age">
+            <input type="text" id="username" placeholder="Username">
+            <input type="email" id="email" placeholder="Email or Phone">
+            <input type="password" id="password" placeholder="Password">
+            <input type="file" id="profilePic" accept="image/*">
+            <button id="signupBtn"><i class="fas fa-user-plus"></i> Sign Up</button>
+            <button id="googleBtn"><i class="fab fa-google"></i> Sign Up with Google</button>
+            <p>Already have an account? <a href="login.html">Login</a></p>
+        </div>
+    </div>
+
+    <!-- Firebase Compatibility Scripts -->
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-storage-compat.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
+    <script>
+        const firebaseConfig = {
+            apiKey: "AIzaSyBqZv6IcP0dsCIZLADu2LMalMBA66Q1sCQ",
+            authDomain: "writerscape-3855a.firebaseapp.com",
+            projectId: "writerscape-3855a",
+            storageBucket: "writerscape-3855a.appspot.com",
+            messagingSenderId: "377436644028",
+            appId: "1:377436644028:web:ffc3d2841055b470bda6b9",
+            measurementId: "G-8STT58NQ0Q"
+        };
+
+        firebase.initializeApp(firebaseConfig);
+        const auth = firebase.auth();
+        const db = firebase.firestore();
+        const storage = firebase.storage();
+
+        // Preloader Animation
+        document.addEventListener('DOMContentLoaded', () => {
+            const preloader = document.getElementById('preloader');
+            const letters = document.querySelector('.preloader-text').textContent.split('');
+            document.querySelector('.preloader-text').innerHTML = letters.map(letter => `<span>${letter}</span>`).join('');
+            
+            gsap.from('.preloader-text span', {
+                opacity: 0,
+                rotation: 90,
+                stagger: 0.1,
+                duration: 0.5,
+                ease: 'power2.out'
+            });
+            gsap.to(preloader, {
+                opacity: 0,
+                delay: 2,
+                duration: 1,
+                onComplete: () => preloader.style.display = 'none'
+            });
+        });
+
+        // Signup with Email/Password
+        document.getElementById('signupBtn').addEventListener('click', async () => {
+            const name = document.getElementById('name').value.trim();
+            const age = document.getElementById('age').value.trim();
+            const username = document.getElementById('username').value.trim();
+            const email = document.getElementById('email').value.trim();
+            const password = document.getElementById('password').value.trim();
+            const profilePic = document.getElementById('profilePic').files[0];
+
+            if (!name || !age || !username || !email || !password || !profilePic) {
+                alert('Please fill all required fields.');
+                return;
+            }
+
+            try {
+                const userCredential = await auth.createUserWithEmailAndPassword(email, password);
+                const user = userCredential.user;
+                const storageRef = storage.ref(`profilePics/${user.uid}`);
+                await storageRef.put(profilePic);
+                const photoURL = await storageRef.getDownloadURL();
+
+                await user.updateProfile({ displayName: username, photoURL });
+                await db.collection('users').doc(user.uid).set({ name, age, username, email, phone: '', photoURL });
+                await user.sendEmailVerification();
+                await auth.signOut(); // Sign out to force login
+                alert('Registration successful! A verification email has been sent. Please verify your email and log in.');
+                window.location.href = 'login.html';
+            } catch (error) {
+                console.error('Signup error:', error.code, error.message);
+                alert(`Signup failed: ${error.message}`);
+            }
+        });
+
+        // Signup with Google
+        document.getElementById('googleBtn').addEventListener('click', async () => {
+            const provider = new firebase.auth.GoogleAuthProvider();
+            try {
+                const result = await auth.signInWithPopup(provider);
+                const user = result.user;
+                const additionalInfo = {
+                    name: user.displayName,
+                    age: '',
+                    username: user.displayName.split(' ').join('').toLowerCase(),
+                    email: user.email,
+                    phone: '',
+                    photoURL: user.photoURL
+                };
+                await db.collection('users').doc(user.uid).set(additionalInfo, { merge: true });
+                alert('Google signup successful! You are now logged in.');
+                window.location.href = 'index.html';
+            } catch (error) {
+                console.error('Google signup error:', error.code, error.message);
+                alert(`Google signup failed: ${error.message}`);
+            }
+        });
+    </script>
+</body>
+</html>

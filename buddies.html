@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Writerscape - Buddies</title>
+    <link rel="stylesheet" href="styles.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+</head>
+<body>
+    <div id="preloader">
+        <div class="preloader-text">Writerscape</div>
+    </div>
+
+    <header class="header">
+        <div class="logo" onclick="window.location.href='index.html'">Writerscape</div>
+        <div class="header-icons">
+            <i class="fas fa-bell icon notification-icon" id="notificationIcon"></i>
+            <div class="icon profile-icon desktop-only" id="profileIcon"></div>
+            <i class="fas fa-users icon buddies-icon desktop-only" id="buddiesIcon"></i>
+            <button class="menu-btn">
+                <span></span>
+                <span></span>
+                <span></span>
+            </button>
+        </div>
+    </header>
+
+    <div id="notificationPopup" class="notification-popup">
+        <h3>Notifications</h3>
+        <div id="notificationList"></div>
+    </div>
+
+    <nav class="menu">
+        <a href="profile.html" class="menu-item">Profile</a>
+        <a href="buddies.html" class="menu-item">Buddies</a>
+        <a href="#" class="menu-item" id="logout">Logout</a>
+        <a href="#" class="menu-item">Notifications</a>
+    </nav>
+
+    <main class="content buddies-page">
+        <div class="search-container">
+            <i class="fas fa-search search-icon"></i>
+            <input type="text" placeholder="Search Buddies by Name..." id="buddySearch">
+        </div>
+        <div id="buddiesList" class="buddies-list"></div>
+    </main>
+
+    <footer class="footer-nav">
+        <div class="nav-icon profile-icon" id="footerProfile" onclick="window.location.href='profile.html'"></div>
+        <i class="fas fa-home nav-icon" onclick="window.location.href='index.html'"></i>
+        <i class="fas fa-search nav-icon search-icon" onclick="window.location.href='buddies.html'"></i>
+        <i class="fas fa-sign-out-alt nav-icon logout-icon" id="footerLogout"></i>
+    </footer>
+
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
+    <script>
+        const firebaseConfig = {
+            apiKey: "AIzaSyBqZv6IcP0dsCIZLADu2LMalMBA66Q1sCQ",
+            authDomain: "writerscape-3855a.firebaseapp.com",
+            projectId: "writerscape-3855a",
+            storageBucket: "writerscape-3855a.appspot.com",
+            messagingSenderId: "377436644028",
+            appId: "1:377436644028:web:ffc3d2841055b470bda6b9",
+            measurementId: "G-8STT58NQ0Q"
+        };
+
+        firebase.initializeApp(firebaseConfig);
+        const auth = firebase.auth();
+        const db = firebase.firestore();
+
+        document.addEventListener('DOMContentLoaded', () => {
+            const preloader = document.getElementById('preloader');
+            const letters = document.querySelector('.preloader-text').textContent.split('');
+            document.querySelector('.preloader-text').innerHTML = letters.map(letter => `<span>${letter}</span>`).join('');
+            gsap.from('.preloader-text span', { opacity: 0, rotation: 90, stagger: 0.1, duration: 0.5, ease: 'power2.out' });
+            gsap.to(preloader, { opacity: 0, delay: 2, duration: 1, onComplete: () => preloader.style.display = 'none' });
+        });
+
+        auth.onAuthStateChanged(user => {
+            if (!user || (!user.emailVerified && !user.providerData.some(p => p.providerId === 'google.com'))) {
+                window.location.href = 'login.html';
+            } else {
+                loadProfile(user);
+                loadBuddies(user);
+                loadNotifications(user);
+            }
+        });
+
+        function loadProfile(user) {
+            document.getElementById('profileIcon').style.backgroundImage = `url(${user.photoURL})`;
+            document.getElementById('footerProfile').style.backgroundImage = `url(${user.photoURL})`;
+        }
+
+        document.getElementById('buddySearch').addEventListener('input', (e) => {
+            const query = e.target.value.trim().toLowerCase();
+            loadBuddies(auth.currentUser, query);
+        });
+
+        function loadBuddies(user, searchQuery = '') {
+            const buddiesList = document.getElementById('buddiesList');
+            db.collection('users').get().then(snapshot => {
+                buddiesList.innerHTML = '';
+                let hasBuddies = false;
+                snapshot.forEach(doc => {
+                    const buddy = doc.data();
+                    if (buddy.username.toLowerCase().includes(searchQuery) && buddy.email !== user.email) {
+                        hasBuddies = true;
+                        buddiesList.innerHTML += `
+                            <div class="buddy-item">
+                                <div class="buddy-profile" style="background-image: url(${buddy.photoURL})"></div>
+                                <span>${buddy.username}</span>
+                                <button class="add-buddy" data-uid="${doc.id}">Add Buddy</button>
+                            </div>
+                        `;
+                    }
+                });
+                if (!hasBuddies) {
+                    buddiesList.innerHTML = '<p>No buddies found.</p>';
+                }
+                document.querySelectorAll('.add-buddy').forEach(btn => {
+                    btn.addEventListener('click', () => sendFriendRequest(user, btn.dataset.uid));
+                });
+            });
+        }
+
+        function sendFriendRequest(fromUser, toUserId) {
+            db.collection('notifications').add({
+                fromUserId: fromUser.uid,
+                fromUsername: fromUser.displayName,
+                toUserId,
+                message: `${fromUser.displayName} sent you a friend request!`,
+                timestamp: firebase.firestore.FieldValue.serverTimestamp()
+            }).then(() => alert('Friend request sent!'));
+        }
+
+        document.getElementById('buddiesIcon').addEventListener('click', () => {
+            const buddiesSection = document.querySelector('.content');
+            if (buddiesSection.style.opacity === '1') {
+                gsap.to(buddiesSection, { opacity: 0, y: 20, duration: 0.3, onComplete: () => buddiesSection.style.display = 'none' });
+            } else {
+                buddiesSection.style.display = 'block';
+                gsap.fromTo(buddiesSection, { opacity: 0, y: 20 }, { opacity: 1, y: 0, duration: 0.3 });
+            }
+        });
+
+        document.getElementById('notificationIcon').addEventListener('click', () => {
+            const popup = document.getElementById('notificationPopup');
+            if (popup.style.display === 'block') {
+                gsap.to(popup, { opacity: 0, y: -20, duration: 0.3, onComplete: () => popup.style.display = 'none' });
+                document.getElementById('notificationIcon').style.color = '#333';
+            } else {
+                popup.style.display = 'block';
+                gsap.fromTo(popup, { opacity: 0, y: -20 }, { opacity: 1, y: 0, duration: 0.3 });
+            }
+        });
+
+        function loadNotifications(user) {
+            db.collection('notifications').where('toUserId', '==', user.uid).orderBy('timestamp', 'desc').onSnapshot(snapshot => {
+                const notificationList = document.getElementById('notificationList');
+                notificationList.innerHTML = '';
+                if (snapshot.size > 0) {
+                    document.getElementById('notificationIcon').style.color = 'red';
+                }
+                snapshot.forEach(doc => {
+                    const notif = doc.data();
+                    notificationList.innerHTML += `<p>${notif.message} - ${new Date(notif.timestamp.toDate()).toLocaleTimeString()}</p>`;
+                });
+            });
+        }
+
+        document.getElementById('logout').addEventListener('click', () => auth.signOut());
+        document.getElementById('footerLogout').addEventListener('click', () => auth.signOut());
+    </script>
+    <script src="script.js"></script>
+</body>
+</html>

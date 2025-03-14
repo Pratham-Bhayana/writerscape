@@ -1,0 +1,322 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Writerscape - User Profile</title>
+    <link rel="stylesheet" href="styles.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <style>
+        #addBuddyBtn {
+    padding: 10px 20px;
+    background: #28a745;
+    color: #fff;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+    transition: background 0.3s ease, transform 0.3s ease;
+}
+
+#addBuddyBtn:hover {
+    background: #218838;
+    transform: scale(1.05);
+}
+    </style>
+</head>
+<body>
+    <div id="preloader">
+        <div class="preloader-text">Writerscape</div>
+    </div>
+
+    <header class="header">
+        <div class="logo" onclick="window.location.href='index.html'">Writerscape</div>
+        <div class="header-icons">
+            <i class="fas fa-bell icon notification-icon" id="notificationIcon"></i>
+            <div class="icon profile-icon" id="profileIcon"></div>
+            <button class="menu-btn">
+                <span></span>
+                <span></span>
+                <span></span>
+            </button>
+        </div>
+    </header>
+
+    <div id="notificationPopup" class="notification-popup">
+        <h3>Notifications</h3>
+        <div id="notificationList"></div>
+    </div>
+
+    <nav class="menu">
+        <a href="profile.html" class="menu-item">Profile</a>
+        <a href="buddies.html" class="menu-item">Buddies</a>
+        <a href="#" class="menu-item" id="logout">Logout</a>
+        <a href="#" class="menu-item">Notifications</a>
+    </nav>
+
+    <main class="content">
+        <div class="profile-details" id="userProfileDetails"></div>
+        <button id="addBuddyBtn" style="display: none; margin-top: 10px;">Add as Buddy</button>
+        <div class="posts" id="userPosts"></div>
+    </main>
+
+    <footer class="footer-nav">
+        <div class="nav-icon profile-icon" id="footerProfile" onclick="window.location.href='profile.html'"></div>
+        <i class="fas fa-home nav-icon" onclick="window.location.href='index.html'"></i>
+        <i class="fas fa-search nav-icon search-icon" onclick="window.location.href='buddies.html'"></i>
+        <i class="fas fa-sign-out-alt nav-icon logout-icon" id="footerLogout"></i>
+    </footer>
+
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-storage-compat.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
+    <script>
+        const firebaseConfig = {
+            apiKey: "AIzaSyBqZv6IcP0dsCIZLADu2LMalMBA66Q1sCQ",
+            authDomain: "writerscape-3855a.firebaseapp.com",
+            projectId: "writerscape-3855a",
+            storageBucket: "writerscape-3855a.appspot.com",
+            messagingSenderId: "377436644028",
+            appId: "1:377436644028:web:ffc3d2841055b470bda6b9",
+            measurementId: "G-8STT58NQ0Q"
+        };
+
+        firebase.initializeApp(firebaseConfig);
+        const auth = firebase.auth();
+        const db = firebase.firestore();
+        const storage = firebase.storage();
+
+        document.addEventListener('DOMContentLoaded', () => {
+            const preloader = document.getElementById('preloader');
+            const letters = document.querySelector('.preloader-text').textContent.split('');
+            document.querySelector('.preloader-text').innerHTML = letters.map(letter => `<span>${letter}</span>`).join('');
+            gsap.from('.preloader-text span', { opacity: 0, rotation: 90, stagger: 0.1, duration: 0.5, ease: 'power2.out' });
+            gsap.to(preloader, { opacity: 0, delay: 2, duration: 1, onComplete: () => preloader.style.display = 'none' });
+            loadUserProfile();
+        });
+
+        auth.onAuthStateChanged(user => {
+            if (!user || (!user.emailVerified && !user.providerData.some(p => p.providerId === 'google.com'))) {
+                window.location.href = 'login.html';
+            } else {
+                loadProfile(user);
+                loadNotifications(user);
+            }
+        });
+
+        function loadProfile(user) {
+            document.getElementById('profileIcon').style.backgroundImage = `url(${user.photoURL || 'https://via.placeholder.com/30'})`;
+            document.getElementById('footerProfile').style.backgroundImage = `url(${user.photoURL || 'https://via.placeholder.com/30'})`;
+        }
+
+        function loadUserProfile() {
+            const urlParams = new URLSearchParams(window.location.search);
+            const userId = urlParams.get('uid');
+            if (userId) {
+                db.collection('users').doc(userId).get().then(doc => {
+                    const data = doc.data() || {};
+                    const profileDetails = document.getElementById('userProfileDetails');
+                    profileDetails.innerHTML = `
+                        <div class="profile-photo" style="background-image: url(${data.photoURL || 'https://via.placeholder.com/150'})"></div>
+                        <div class="details-column">
+                            <p><strong>Name:</strong> ${data.name || 'N/A'}</p>
+                            <p><strong>Email:</strong> ${data.email || 'N/A'}</p>
+                            <p><strong>Username:</strong> ${data.username || 'N/A'}</p>
+                            <p><strong>Mobile:</strong> ${data.phone || 'N/A'}</p>
+                        </div>
+                    `;
+                    const currentUser = auth.currentUser;
+                    if (currentUser && currentUser.uid !== userId) {
+                        document.getElementById('addBuddyBtn').style.display = 'block';
+                        document.getElementById('addBuddyBtn').addEventListener('click', () => sendFriendRequest(currentUser, userId));
+                    }
+                }).catch(error => console.error('Error loading user profile:', error));
+                loadUserPosts(userId);
+            }
+        }
+
+        function loadUserPosts(userId) {
+            db.collection('posts').where('userId', '==', userId).orderBy('timestamp', 'desc').onSnapshot(snapshot => {
+                const postsContainer = document.getElementById('userPosts');
+                postsContainer.innerHTML = '<h3>Posts</h3>';
+                if (snapshot.empty) {
+                    postsContainer.innerHTML += '<p>No posts yet.</p>';
+                } else {
+                    snapshot.forEach(doc => {
+                        const post = doc.data();
+                        postsContainer.innerHTML += `
+                            <div class="post" data-post-id="${doc.id}">
+                                <p>${post.content || ''}</p>
+                                ${post.mediaURL ? (post.mediaURL.includes('video') ? `<video src="${post.mediaURL}" controls style="width: 100%; max-width: 300px; max-height: 300px; border-radius: 10px;"></video>` : `<img src="${post.mediaURL}" alt="Post Media" style="width: 100%; max-width: 300px; max-height: 300px; object-fit: cover; border-radius: 10px;">`) : ''}
+                                <div class="post-actions">
+                                    <button class="like-btn" data-post-id="${doc.id}" data-liked="false"><i class="fas fa-heart"></i> <span class="like-count">${post.likes || 0}</span></button>
+                                    <button class="comment-btn" data-post-id="${doc.id}"><i class="fas fa-comment"></i> Comment</button>
+                                </div>
+                                <div class="comment-section" style="display: none;">
+                                    <textarea class="comment-input" placeholder="Write a comment..."></textarea>
+                                    <button class="submit-comment-btn">Submit</button>
+                                    <div class="comments-list"></div>
+                                </div>
+                                <div class="comments-display">
+                                    ${post.comments ? post.comments.map(c => `<p><strong>${c.username || 'Anonymous'}:</strong> ${c.text || ''}</p>`).join('') : ''}
+                                </div>
+                            </div>
+                        `;
+                    });
+                    addPostInteractivity();
+                }
+            }).catch(error => console.error('Error loading posts:', error));
+        }
+
+        function addPostInteractivity() {
+            document.querySelectorAll('.like-btn').forEach(btn => {
+                btn.addEventListener('click', async () => {
+                    const postId = btn.dataset.postId;
+                    const postRef = db.collection('posts').doc(postId);
+                    const postDoc = await postRef.get();
+                    let currentLikes = postDoc.data().likes || 0;
+                    const isLiked = btn.dataset.liked === 'true';
+                    if (isLiked) {
+                        currentLikes -= 1;
+                        btn.style.background = 'transparent';
+                        btn.style.color = '#333';
+                        btn.dataset.liked = 'false';
+                    } else {
+                        currentLikes += 1;
+                        btn.style.background = '#ff4d4d';
+                        btn.style.color = '#fff';
+                        btn.dataset.liked = 'true';
+                    }
+                    await postRef.update({ likes: currentLikes });
+                    btn.querySelector('.like-count').textContent = currentLikes;
+                    sendLikeNotification(postId, auth.currentUser);
+                });
+            });
+
+            document.querySelectorAll('.comment-btn').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    const postId = btn.dataset.postId;
+                    const commentSection = document.querySelector(`.post[data-post-id="${postId}"] .comment-section`);
+                    commentSection.style.display = commentSection.style.display === 'none' ? 'block' : 'none';
+                });
+            });
+
+            document.querySelectorAll('.submit-comment-btn').forEach(btn => {
+                btn.addEventListener('click', async () => {
+                    const postElement = btn.closest('.post');
+                    const postId = postElement.dataset.postId;
+                    const commentInput = postElement.querySelector('.comment-input').value.trim();
+                    const user = auth.currentUser;
+                    if (commentInput && user) {
+                        const postRef = db.collection('posts').doc(postId);
+                        const postDoc = await postRef.get();
+                        const comments = postDoc.data().comments || [];
+                        comments.push({ username: user.displayName || 'Anonymous', text: commentInput });
+                        await postRef.update({ comments });
+                        postElement.querySelector('.comment-input').value = '';
+                        sendCommentNotification(postId, user);
+                    }
+                });
+            });
+        }
+
+        function sendFriendRequest(fromUser, toUserId) {
+            db.collection('notifications').add({
+                fromUserId: fromUser.uid,
+                fromUsername: fromUser.displayName || 'Anonymous',
+                toUserId,
+                message: `${fromUser.displayName || 'Anonymous'} sent you a friend request!`,
+                profilePic: fromUser.photoURL || 'https://via.placeholder.com/30',
+                timestamp: firebase.firestore.FieldValue.serverTimestamp(),
+                type: 'friendRequest'
+            }).then(() => {
+                alert('Friend request sent!');
+                document.getElementById('addBuddyBtn').style.display = 'none';
+            }).catch(error => console.error('Error sending friend request:', error));
+        }
+
+        function sendLikeNotification(postId, user) {
+            db.collection('posts').doc(postId).get().then(doc => {
+                const post = doc.data();
+                db.collection('notifications').add({
+                    fromUserId: user.uid,
+                    fromUsername: user.displayName || 'Anonymous',
+                    toUserId: post.userId,
+                    message: `${user.displayName || 'Anonymous'} liked your post!`,
+                    profilePic: user.photoURL || 'https://via.placeholder.com/30',
+                    timestamp: firebase.firestore.FieldValue.serverTimestamp(),
+                    type: 'like'
+                }).catch(error => console.error('Error sending like notification:', error));
+            }).catch(error => console.error('Error fetching post for like notification:', error));
+        }
+
+        function sendCommentNotification(postId, user) {
+            db.collection('posts').doc(postId).get().then(doc => {
+                const post = doc.data();
+                db.collection('notifications').add({
+                    fromUserId: user.uid,
+                    fromUsername: user.displayName || 'Anonymous',
+                    toUserId: post.userId,
+                    message: `${user.displayName || 'Anonymous'} commented on your post!`,
+                    profilePic: user.photoURL || 'https://via.placeholder.com/30',
+                    timestamp: firebase.firestore.FieldValue.serverTimestamp(),
+                    type: 'comment'
+                }).catch(error => console.error('Error sending comment notification:', error));
+            }).catch(error => console.error('Error fetching post for comment notification:', error));
+        }
+
+        document.getElementById('notificationIcon').addEventListener('click', () => {
+            const popup = document.getElementById('notificationPopup');
+            if (popup.style.display === 'block') {
+                gsap.to(popup, { opacity: 0, y: -20, duration: 0.3, onComplete: () => popup.style.display = 'none' });
+                document.getElementById('notificationIcon').style.color = '#333';
+            } else {
+                popup.style.display = 'block';
+                gsap.fromTo(popup, { opacity: 0, y: -20 }, { opacity: 1, y: 0, duration: 0.3 });
+            }
+        });
+
+        function loadNotifications(user) {
+            db.collection('notifications').where('toUserId', '==', user.uid).orderBy('timestamp', 'desc').onSnapshot(snapshot => {
+                const notificationList = document.getElementById('notificationList');
+                notificationList.innerHTML = '';
+                if (snapshot.size > 0) {
+                    document.getElementById('notificationIcon').style.color = 'red';
+                }
+                snapshot.forEach(doc => {
+                    const notif = doc.data();
+                    let action = '';
+                    if (notif.type === 'friendRequest') {
+                        action = `<button class="accept-btn" data-notif-id="${doc.id}" data-from="${notif.fromUserId}">Accept</button> <button class="decline-btn" data-notif-id="${doc.id}">Decline</button>`;
+                    }
+                    notificationList.innerHTML += `<p><img src="${notif.profilePic || 'https://via.placeholder.com/30'}" width="30" height="30" style="border-radius: 50%; margin-right: 10px;">${notif.message} - ${new Date(notif.timestamp.toDate()).toLocaleTimeString()} ${action}</p>`;
+                });
+                document.querySelectorAll('.accept-btn').forEach(btn => {
+                    btn.addEventListener('click', () => {
+                        const notifId = btn.dataset.notifId;
+                        const fromUserId = btn.dataset.from;
+                        db.collection('users').doc(user.uid).update({
+                            buddies: firebase.firestore.FieldValue.arrayUnion(fromUserId)
+                        });
+                        db.collection('users').doc(fromUserId).update({
+                            buddies: firebase.firestore.FieldValue.arrayUnion(user.uid)
+                        });
+                        db.collection('notifications').doc(notifId).delete();
+                    });
+                });
+                document.querySelectorAll('.decline-btn').forEach(btn => {
+                    btn.addEventListener('click', () => {
+                        const notifId = btn.dataset.notifId;
+                        db.collection('notifications').doc(notifId).delete();
+                    });
+                });
+            }).catch(error => console.error('Error loading notifications:', error));
+        }
+
+        document.getElementById('logout').addEventListener('click', () => auth.signOut());
+        document.getElementById('footerLogout').addEventListener('click', () => auth.signOut());
+    </script>
+    <script src="script.js"></script>
+</body>
+</html>
