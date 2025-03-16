@@ -74,37 +74,64 @@
 
         // Signup with Email/Password
         document.getElementById('signupBtn').addEventListener('click', async () => {
-            const name = document.getElementById('name').value.trim();
-            const age = document.getElementById('age').value.trim();
-            const username = document.getElementById('username').value.trim();
-            const email = document.getElementById('email').value.trim();
-            const password = document.getElementById('password').value.trim();
-            const profilePic = document.getElementById('profilePic').files[0];
+    console.log("Sign-up button clicked");
 
-            if (!name || !age || !username || !email || !password || !profilePic) {
-                alert('Please fill all required fields.');
-                return;
-            }
+    const name = document.getElementById('name').value.trim();
+    const age = document.getElementById('age').value.trim();
+    const username = document.getElementById('username').value.trim();
+    const email = document.getElementById('email').value.trim();
+    const password = document.getElementById('password').value.trim();
+    const profilePic = document.getElementById('profilePic').files[0];
 
-            try {
-                const userCredential = await auth.createUserWithEmailAndPassword(email, password);
-                const user = userCredential.user;
+    if (!name || !age || !username || !email || !password || !profilePic) {
+        alert('Please fill all required fields.');
+        console.log("❌ Missing fields");
+        return;
+    }
+
+    try {
+        console.log("🔥 Creating user...");
+        const userCredential = await auth.createUserWithEmailAndPassword(email, password);
+        const user = userCredential.user;
+        console.log("✅ User created:", user);
+
+        console.log("📧 Sending verification email...");
+        await user.sendEmailVerification();
+
+        alert(`A verification email has been sent to ${email}. Check your inbox/spam folder.`);
+
+        // Open OTP verification window
+        const otpWindow = window.open("otp.html", "_blank", "width=500,height=600");
+
+        // Listen for verification message from otp.html
+        window.addEventListener("message", async (event) => {
+            if (event.data === "verified") {
+                console.log("✅ User verified!");
+
+                console.log("📤 Uploading profile picture...");
                 const storageRef = storage.ref(`profilePics/${user.uid}`);
                 await storageRef.put(profilePic);
                 const photoURL = await storageRef.getDownloadURL();
+                console.log("✅ Profile picture uploaded:", photoURL);
 
+                console.log("👤 Updating profile...");
                 await user.updateProfile({ displayName: username, photoURL });
-                await db.collection('users').doc(user.uid).set({ name, age, username, email, phone: '', photoURL });
-                await user.sendEmailVerification();
-                await auth.signOut(); // Sign out to force login
-                alert('Registration successful! A verification email has been sent. Please verify your email and log in.');
-                window.location.href = 'login.html';
-            } catch (error) {
-                console.error('Signup error:', error.code, error.message);
-                alert(`Signup failed: ${error.message}`);
+
+                console.log("💾 Saving verified user info to Firestore...");
+                await db.collection('users').doc(user.uid).set({
+                    name, age, username, email, phone: '', photoURL
+                });
+
+                alert("Verification complete! Redirecting...");
+                window.location.href = "index.html"; // Redirect to main page
             }
         });
 
+    } catch (error) {
+        console.error("❌ Signup error:", error.code, error.message);
+        alert(`Signup failed: ${error.message}`);
+    }
+});
         // Signup with Google
         document.getElementById('googleBtn').addEventListener('click', async () => {
             const provider = new firebase.auth.GoogleAuthProvider();

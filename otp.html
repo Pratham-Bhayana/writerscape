@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Email Verification</title>
+    <link rel="stylesheet" href="otp.css">
+</head>
+<body>
+    <div class="otp-container">
+        <h2>Verifying Email...</h2>
+        <p>We've sent a verification link to your email. Please check your inbox.</p>
+        <div class="preloader"></div>
+        <p id="status-text"><strong>Waiting for verification...</strong></p>
+    </div>
+
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
+    <script>
+        const firebaseConfig = {
+            apiKey: "AIzaSyBqZv6IcP0dsCIZLADu2LMalMBA66Q1sCQ",
+            authDomain: "writerscape-3855a.firebaseapp.com",
+            projectId: "writerscape-3855a",
+            storageBucket: "writerscape-3855a.appspot.com",
+            messagingSenderId: "377436644028",
+            appId: "1:377436644028:web:ffc3d2841055b470bda6b9",
+            measurementId: "G-8STT58NQ0Q"
+        };
+        
+        firebase.initializeApp(firebaseConfig);
+        const auth = firebase.auth();
+
+        async function checkEmailVerification() {
+            const user = auth.currentUser;
+            if (user) {
+                await user.reload(); // Refresh user data
+                if (user.emailVerified) {
+                    document.getElementById("status-text").innerHTML = "✅ Email Verified! Redirecting...";
+                    
+                    // Notify the main window and close after delay
+                    window.opener.postMessage("verified", "*"); 
+                    setTimeout(() => {
+                        window.close(); // Close mini-window
+                    }, 2000);
+                } else {
+                    setTimeout(checkEmailVerification, 3000); // Retry in 3 sec
+                }
+            } else {
+                setTimeout(checkEmailVerification, 3000); // Retry if user not loaded yet
+            }
+        }
+
+        // Start checking verification status
+        auth.onAuthStateChanged((user) => {
+            if (user) {
+                checkEmailVerification();
+            }
+        });
+    </script>
+</body>
+</html>
